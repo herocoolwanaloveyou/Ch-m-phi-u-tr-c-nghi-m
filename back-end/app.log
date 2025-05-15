@@ -5,3 +5,73 @@
 2025-05-15 18:37:10,198 - INFO - [33mPress CTRL+C to quit[0m
 2025-05-15 18:37:39,005 - INFO - 127.0.0.1 - - [15/May/2025 18:37:39] "GET / HTTP/1.1" 200 -
 2025-05-15 18:37:39,822 - INFO - 127.0.0.1 - - [15/May/2025 18:37:39] "[33mGET /favicon.ico HTTP/1.1[0m" 404 -
+2025-05-15 20:33:03,498 - INFO - [31m[1mWARNING: This is a development server. Do not use it in a production deployment. Use a production WSGI server instead.[0m
+ * Running on all addresses (0.0.0.0)
+ * Running on http://127.0.0.1:5000
+ * Running on http://10.0.179.178:5000
+2025-05-15 20:33:03,499 - INFO - [33mPress CTRL+C to quit[0m
+2025-05-15 20:35:19,875 - INFO - 127.0.0.1 - - [15/May/2025 20:35:19] "GET / HTTP/1.1" 200 -
+2025-05-15 22:20:18,015 - INFO - File saved: uploads\979ccbf9af874fbfa4c9cfdc049ec3d9_34.jpg
+2025-05-15 22:20:19,650 - INFO - 10.0.179.178 - - [15/May/2025 22:20:19] "[31m[1mPOST /api/grade HTTP/1.1[0m" 400 -
+2025-05-15 22:20:27,102 - INFO - File saved: uploads\7deb0a9399e944549b4cacc6147d8007_2cd5b3d4-ae4f-4dbc-aae6-b2f148fba82c7825858262146221205.jpg
+2025-05-15 22:20:27,784 - INFO - 10.0.179.178 - - [15/May/2025 22:20:27] "[31m[1mPOST /api/grade HTTP/1.1[0m" 400 -
+2025-05-15 22:20:39,949 - INFO - File saved: uploads\55e16ed6d8784c2fa047a237e2181bf3_2cd5b3d4-ae4f-4dbc-aae6-b2f148fba82c7825858262146221205.jpg
+2025-05-15 22:20:40,615 - INFO - 10.0.179.178 - - [15/May/2025 22:20:40] "[31m[1mPOST /api/grade HTTP/1.1[0m" 400 -
+2025-05-15 22:26:26,423 - INFO - File saved: uploads\db37126133434f0fa39d691da4bdd63e_1000003426.jpg
+2025-05-15 22:26:26,752 - INFO - 10.0.179.178 - - [15/May/2025 22:26:26] "[31m[1mPOST /api/grade HTTP/1.1[0m" 400 -
+2025-05-15 22:26:32,555 - INFO - File saved: uploads\8f4101e5ef454a7f8fb569058d452f32_b8521d8a-f955-4542-a1da-332f6a9783118633715261618864355.jpg
+2025-05-15 22:26:34,256 - INFO - 10.0.179.178 - - [15/May/2025 22:26:34] "[31m[1mPOST /api/grade HTTP/1.1[0m" 400 -
+2025-05-15 22:26:37,843 - INFO - File saved: uploads\d4f58920497143cd8ccb4bb4b5ec7367_16f3905f-a1bd-4ae7-901e-9de5ee6aeee19190936851139702878.jpg
+2025-05-15 22:26:39,626 - INFO - 10.0.179.178 - - [15/May/2025 22:26:39] "[31m[1mPOST /api/grade HTTP/1.1[0m" 400 -
+2025-05-15 22:27:49,414 - INFO - File saved: uploads\1fe60d79bd414aab81b82941a194a68d_1000003426.jpg
+2025-05-15 22:27:49,722 - INFO - 10.0.179.178 - - [15/May/2025 22:27:49] "[31m[1mPOST /api/grade HTTP/1.1[0m" 400 -
+2025-05-15 22:29:51,910 - INFO - File saved: uploads\0a75cfbbc3004641a3ec21f09fb2fe6a_1000003426.jpg
+2025-05-15 22:29:52,189 - INFO - 10.0.179.178 - - [15/May/2025 22:29:52] "[31m[1mPOST /api/grade HTTP/1.1[0m" 400 -
+2025-05-15 22:29:56,227 - INFO - File saved: uploads\5e5b3ed01218429bbc5f9325440392d5_e62799c4-43f4-4068-8b58-d23b201bdbdb5245722122956435072.jpg
+2025-05-15 22:29:58,956 - INFO - 10.0.179.178 - - [15/May/2025 22:29:58] "[31m[1mPOST /api/grade HTTP/1.1[0m" 400 -
+2025-05-15 22:32:41,162 - INFO - File saved: uploads\10cd55e97b5a4b188edbe18f720992aa_1000003426.jpg
+2025-05-15 22:32:41,465 - INFO - 10.0.179.178 - - [15/May/2025 22:32:41] "[31m[1mPOST /api/grade HTTP/1.1[0m" 400 -
+2025-05-15 22:37:37,177 - INFO - File saved: uploads\2ebaf0f3a1eb4da0815c55b100c5e25f_z6601030594416_efda7b6efdc951e765ed40326cf7744a.jpg
+2025-05-15 22:37:37,494 - INFO - 127.0.0.1 - - [15/May/2025 22:37:37] "[31m[1mPOST /api/grade HTTP/1.1[0m" 400 -
+2025-05-15 22:38:26,053 - INFO - File saved: uploads\b762edcd75254d73b7709c01685c74f7_z6601030594416_efda7b6efdc951e765ed40326cf7744a.jpg
+2025-05-15 22:38:26,359 - INFO - 127.0.0.1 - - [15/May/2025 22:38:26] "[31m[1mPOST /api/grade HTTP/1.1[0m" 400 -
+2025-05-15 22:38:34,094 - INFO - 127.0.0.1 - - [15/May/2025 22:38:34] "[31m[1mPOST /api/grade HTTP/1.1[0m" 400 -
+2025-05-15 22:38:37,328 - INFO - File saved: uploads\2ef580f59ce64fa792243927a3b200f9_z6601030594416_efda7b6efdc951e765ed40326cf7744a.jpg
+2025-05-15 22:38:37,671 - INFO - 127.0.0.1 - - [15/May/2025 22:38:37] "[31m[1mPOST /api/grade HTTP/1.1[0m" 400 -
+2025-05-15 22:38:51,206 - INFO - File saved: uploads\1212a412ec614a378490183125af215e_z6601030594416_efda7b6efdc951e765ed40326cf7744a.jpg
+2025-05-15 22:38:51,506 - INFO - 127.0.0.1 - - [15/May/2025 22:38:51] "[31m[1mPOST /api/grade HTTP/1.1[0m" 400 -
+2025-05-15 22:41:51,076 - INFO - File saved: uploads\1a73a5b45d6141f686a44440a114c100_z6601030594416_efda7b6efdc951e765ed40326cf7744a.jpg
+2025-05-15 22:41:51,380 - INFO - 127.0.0.1 - - [15/May/2025 22:41:51] "[31m[1mPOST /api/grade HTTP/1.1[0m" 400 -
+2025-05-15 22:42:45,287 - INFO - 127.0.0.1 - - [15/May/2025 22:42:45] "[31m[1mPOST /api/grade HTTP/1.1[0m" 400 -
+2025-05-15 22:42:52,582 - INFO - File saved: uploads\31c4e4f8d3da4eda8eb06ff441b98261_Screenshot_217.png
+2025-05-15 22:42:54,490 - INFO - 127.0.0.1 - - [15/May/2025 22:42:54] "[31m[1mPOST /api/grade HTTP/1.1[0m" 400 -
+2025-05-15 22:43:06,681 - INFO - File saved: uploads\3de759477ca547c8b9d380bb77550409_hinh-nen-thac-nuoc-dep-nhat-10.jpg
+2025-05-15 22:43:07,235 - INFO - 127.0.0.1 - - [15/May/2025 22:43:07] "[31m[1mPOST /api/grade HTTP/1.1[0m" 400 -
+2025-05-15 22:43:11,742 - INFO - File saved: uploads\2855ca2d56b149c6be94340ae10414b9_hinh-nen-thac-nuoc-dep-nhat-10.jpg
+2025-05-15 22:43:12,281 - INFO - 127.0.0.1 - - [15/May/2025 22:43:12] "[31m[1mPOST /api/grade HTTP/1.1[0m" 400 -
+2025-05-15 22:43:36,371 - INFO - File saved: uploads\50eb1f217950468782408c6a638e5f87_z6601030594416_efda7b6efdc951e765ed40326cf7744a.jpg
+2025-05-15 22:43:36,664 - INFO - 127.0.0.1 - - [15/May/2025 22:43:36] "[31m[1mPOST /api/grade HTTP/1.1[0m" 400 -
+2025-05-15 22:49:12,571 - INFO - File saved: uploads\0646adb54fa842e79979aad29087877e_z6601030594416_efda7b6efdc951e765ed40326cf7744a.jpg
+2025-05-15 22:49:12,849 - INFO - 127.0.0.1 - - [15/May/2025 22:49:12] "[31m[1mPOST /api/grade HTTP/1.1[0m" 400 -
+2025-05-15 22:49:14,549 - INFO - File saved: uploads\afe7f76cc6e741aea6aeb46bea43597f_z6601030594416_efda7b6efdc951e765ed40326cf7744a.jpg
+2025-05-15 22:49:14,823 - INFO - 127.0.0.1 - - [15/May/2025 22:49:14] "[31m[1mPOST /api/grade HTTP/1.1[0m" 400 -
+2025-05-15 22:49:26,062 - INFO - File saved: uploads\22cdc49408574f9fa9577de185f3e371_z6601030594416_efda7b6efdc951e765ed40326cf7744a.jpg
+2025-05-15 22:49:26,346 - INFO - 127.0.0.1 - - [15/May/2025 22:49:26] "[31m[1mPOST /api/grade HTTP/1.1[0m" 400 -
+2025-05-15 22:49:27,628 - INFO - File saved: uploads\21049755af3a425297bc001ecc955daa_z6601030594416_efda7b6efdc951e765ed40326cf7744a.jpg
+2025-05-15 22:49:27,945 - INFO - 127.0.0.1 - - [15/May/2025 22:49:27] "[31m[1mPOST /api/grade HTTP/1.1[0m" 400 -
+2025-05-15 22:53:13,251 - INFO - File saved: uploads\47dfe3cbc84c4164aa19b454ee59059e_z6601030594416_efda7b6efdc951e765ed40326cf7744a.jpg
+2025-05-15 22:53:13,556 - INFO - 127.0.0.1 - - [15/May/2025 22:53:13] "[31m[1mPOST /api/grade HTTP/1.1[0m" 400 -
+2025-05-15 22:53:41,308 - INFO - File saved: uploads\5c8f5f3074e84142b6c2fb274c5a8336_z6601030594416_efda7b6efdc951e765ed40326cf7744a.jpg
+2025-05-15 22:53:41,594 - INFO - 127.0.0.1 - - [15/May/2025 22:53:41] "[31m[1mPOST /api/grade HTTP/1.1[0m" 400 -
+2025-05-15 22:53:44,083 - INFO - File saved: uploads\416cd0cdd6dc47498fce602aa922b8ee_z6601030594416_efda7b6efdc951e765ed40326cf7744a.jpg
+2025-05-15 22:53:44,400 - INFO - 127.0.0.1 - - [15/May/2025 22:53:44] "[31m[1mPOST /api/grade HTTP/1.1[0m" 400 -
+2025-05-15 22:54:41,370 - INFO - File saved: uploads\78ef9f471b6540b5a14c6fcc52f34058_z6601030594416_efda7b6efdc951e765ed40326cf7744a.jpg
+2025-05-15 22:54:41,681 - INFO - 127.0.0.1 - - [15/May/2025 22:54:41] "[31m[1mPOST /api/grade HTTP/1.1[0m" 400 -
+2025-05-15 22:54:42,702 - INFO - File saved: uploads\3606d22dc2d748aebe905ab7ef835e6b_z6601030594416_efda7b6efdc951e765ed40326cf7744a.jpg
+2025-05-15 22:54:42,984 - INFO - 127.0.0.1 - - [15/May/2025 22:54:42] "[31m[1mPOST /api/grade HTTP/1.1[0m" 400 -
+2025-05-15 22:54:44,972 - INFO - File saved: uploads\fbbdd1534f39404da81906ca9be4d565_z6601030594416_efda7b6efdc951e765ed40326cf7744a.jpg
+2025-05-15 22:54:45,257 - INFO - 127.0.0.1 - - [15/May/2025 22:54:45] "[31m[1mPOST /api/grade HTTP/1.1[0m" 400 -
+2025-05-15 22:54:46,301 - INFO - File saved: uploads\c943c57691424e6893745d2c28e37754_z6601030594416_efda7b6efdc951e765ed40326cf7744a.jpg
+2025-05-15 22:54:46,594 - INFO - 127.0.0.1 - - [15/May/2025 22:54:46] "[31m[1mPOST /api/grade HTTP/1.1[0m" 400 -
+2025-05-15 22:55:01,306 - INFO - File saved: uploads\e5fd089a4d5d46ef820af1647aaeba8b_z6601030594416_efda7b6efdc951e765ed40326cf7744a.jpg
+2025-05-15 22:55:01,594 - INFO - 127.0.0.1 - - [15/May/2025 22:55:01] "[31m[1mPOST /api/grade HTTP/1.1[0m" 400 -
