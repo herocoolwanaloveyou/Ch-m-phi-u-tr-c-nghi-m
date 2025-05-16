@@ -1,218 +1,206 @@
+from flask import Flask, request, jsonify
 import os
-import json
-import re
-import logging
-from uuid import uuid4
-from flask import Flask, request, jsonify, send_from_directory
-from flask_cors import CORS
-from werkzeug.utils import secure_filename
 import cv2
 import pytesseract
 import numpy as np
-from dotenv import load_dotenv
+import re
+import json
 
-# Cấu hình logging
-logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s - %(levelname)s - %(message)s',
-    handlers=[
-        logging.FileHandler('app.log'),
-        logging.StreamHandler()
-    ]
-)
-logger = logging.getLogger(__name__)
+# Cấu hình đường dẫn Tesseract
+pytesseract.pytesseract.tesseract_cmd = r'C:\Program Files\Tesseract-OCR\tesseract.exe'
 
-# Khởi tạo Flask app
+# File lưu đáp án
+ANSWER_FILE = "answers.json"
+
 app = Flask(__name__)
-CORS(app, resources={r"/api/*": {"origins": "*"}})
 
-# Load biến môi trường
-load_dotenv()
-UPLOAD_FOLDER = os.getenv('UPLOAD_FOLDER', 'uploads')
-ALLOWED_EXTENSIONS = {'png', 'jpg', 'jpeg'}
-MAX_FILE_SIZE = 10 * 1024 * 1024  # 10MB
-TESSERACT_CMD = os.getenv('TESSERACT_CMD', r'C:\Program Files\Tesseract-OCR\tesseract.exe')
-ANSWER_FILE = os.getenv('ANSWER_FILE', 'answers.json')
-
-# Cấu hình Flask
-app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
-app.config['MAX_CONTENT_LENGTH'] = MAX_FILE_SIZE
-os.makedirs(UPLOAD_FOLDER, exist_ok=True)
-
-# Đặt đường dẫn Tesseract
-pytesseract.pytesseract.tesseract_cmd = TESSERACT_CMD
-
-def allowed_file(filename):
-    """Kiểm tra phần mở rộng file có hợp lệ không."""
-    return '.' in filename and filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
-
-def load_answers():
-    """Tải đáp án từ file JSON."""
+# Tải đáp án từ file
+def load_answer_keys():
     try:
-        if os.path.exists(ANSWER_FILE):
-            with open(ANSWER_FILE, 'r', encoding='utf-8') as f:
-                return {int(k): v for k, v in json.load(f).items()}
+        with open(ANSWER_FILE, 'r', encoding='utf-8') as f:
+            data = json.load(f)
+            return {int(k): v for k, v in data.items()}
+    except FileNotFoundError:
+        print(f"File {ANSWER_FILE} not found, returning empty dict.")
         return {}
     except json.JSONDecodeError as e:
-        logger.error(f"Error reading answers file: {e}")
+        print(f"Invalid JSON in {ANSWER_FILE}: {e}, returning empty dict.")
         return {}
     except Exception as e:
-        logger.error(f"Unexpected error loading answers: {e}")
-        raise
+        print(f"Error loading {ANSWER_FILE}: {e}, returning empty dict.")
+        return {}
 
-def preprocess_image(image):
-    """Tiền xử lý hình ảnh để cải thiện OCR."""
+# Lưu đáp án vào file
+def save_answer_keys(answer_keys):
     try:
-        # Resize và chuyển sang grayscale
-        image = cv2.resize(image, None, fx=1.5, fy=1.5, interpolation=cv2.INTER_LINEAR)
-        gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
-        
-        # Tăng độ tương phản
-        clahe = cv2.createCLAHE(clipLimit=2.0, tileGridSize=(8, 8))
-        gray = clahe.apply(gray)
-        
-        # Lọc nhiễu
-        filtered = cv2.bilateralFilter(gray, 9, 75, 75)
-        
-        # Nhị phân hóa
-        thresh = cv2.adaptiveThreshold(
-            filtered, 255, cv2.ADAPTIVE_THRESH_GAUSSIAN_C, cv2.THRESH_BINARY_INV, 15, 8
-        )
-        
-        # Morphological operations
-        kernel = cv2.getStructuringElement(cv2.MORPH_RECT, (2, 2))
-        morph = cv2.morphologyEx(thresh, cv2.MORPH_CLOSE, kernel)
-        
-        return morph
+        with open(ANSWER_FILE, 'w', encoding='utf-8') as f:
+            json.dump({str(k): v for k, v in answer_keys.items()}, f, indent=4)
+        print(f"Successfully saved to {ANSWER_FILE}")
     except Exception as e:
-        logger.error(f"Error preprocessing image: {e}")
-        raise
+        print(f"Error saving to {ANSWER_FILE}: {e}")
 
+# Tiền xử lý ảnh
+def preprocess_strongest(image):
+    image = cv2.resize(image, None, fx=1.5, fy=1.5, interpolation=cv2.INTER_LINEAR)
+    gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
+    clahe = cv2.createCLAHE(clipLimit=2.0, tileGridSize=(8, 8))
+    gray = clahe.apply(gray)
+    filtered = cv2.bilateralFilter(gray, 9, 75, 75)
+    thresh = cv2.adaptiveThreshold(filtered, 255,
+                                   cv2.ADAPTIVE_THRESH_GAUSSIAN_C, cv2.THRESH_BINARY_INV, 15, 8)
+    kernel = cv2.getStructuringElement(cv2.MORPH_RECT, (2, 2))
+    morph = cv2.morphologyEx(thresh, cv2.MORPH_CLOSE, kernel)
+    return morph
+
+# Trích xuất đáp án từ ảnh
 def extract_answers(image_path):
-    """Trích xuất mã đề và đáp án từ hình ảnh."""
-    try:
-        img = cv2.imread(image_path)
-        if img is None:
-            raise ValueError("Cannot read image")
-        
-        processed = preprocess_image(img)
-        config = r'-c tessedit_char_whitelist=ABCD0123456789:-.()MD --oem 3 --psm 6'
-        text = pytesseract.image_to_string(processed, config=config)
-        exam_code, answers = parse_answers(text)
-        
-        return text, (exam_code, answers)
-    except Exception as e:
-        logger.error(f"Error extracting answers: {e}")
-        raise
+    img = cv2.imread(image_path)
+    if img is None:
+        return None, None, "Không thể đọc ảnh."
+    processed = preprocess_strongest(img)
 
+    config = r'-c tessedit_char_whitelist=ABCD0123456789:-.()MD --oem 3 --psm 6'
+    text = pytesseract.image_to_string(processed, config=config)
+    exam_code, student_answers = parse_answers(text)
+    return text, exam_code, student_answers
+
+# Phân tích văn bản để lấy mã đề và đáp án
 def parse_answers(text):
-    """Phân tích văn bản OCR để lấy mã đề và đáp án."""
     answers = {}
     exam_code = None
     lines = text.splitlines()
-    
     for line in lines:
         line = line.strip()
         if not line:
             continue
-            
-        # Tìm mã đề
         if exam_code is None:
             match_code = re.match(r'^MD[:\-]?\s*(\d+)$', line, re.IGNORECASE)
             if match_code:
                 exam_code = int(match_code.group(1))
                 continue
-        
-        # Tìm đáp án
         match = re.match(r'^(\d+)\s*[:\)\-\.]?\s*([A-D])$', line, re.IGNORECASE)
         if match:
             question = int(match.group(1))
             answer = match.group(2).upper()
             answers[question] = answer
-    
     return exam_code, answers
 
+# Tính điểm
 def calculate_score(student_answers, answer_key):
-    """Tính điểm dựa trên đáp án học sinh và đáp án đúng."""
     score = 0
     total = len(answer_key)
-    
     for q_no, correct_ans in answer_key.items():
         student_ans = student_answers.get(q_no)
         if student_ans == correct_ans:
             score += 1
-            
     return score, total
 
+# API để chấm điểm ảnh
 @app.route('/api/grade', methods=['POST'])
-def grade_exam():
-    """Chấm điểm bài thi từ hình ảnh phiếu trả lời."""
-    try:
-        # Kiểm tra file
-        if 'image' not in request.files:
-            return jsonify({'error': 'No file part in request'}), 400
-            
-        file = request.files['image']
-        if file.filename == '':
-            return jsonify({'error': 'No file selected'}), 400
-            
-        if not allowed_file(file.filename):
-            return jsonify({'error': 'Invalid file type. Only PNG, JPG, JPEG allowed'}), 400
-        
-        # Lưu file
-        filename = f"{uuid4().hex}_{secure_filename(file.filename)}"
-        filepath = os.path.join(app.config['UPLOAD_FOLDER'], filename)
-        file.save(filepath)
-        logger.info(f"File saved: {filepath}")
-        
-        # Trích xuất và chấm điểm
-        raw_text, (exam_code, student_answers) = extract_answers(filepath)
-        answer_keys = load_answers()
-        
-        if exam_code is None:
-            return jsonify({'error': 'Exam code not found in image'}), 400
-        if exam_code not in answer_keys:
-            return jsonify({'error': f'No answer key found for exam code {exam_code}'}), 400
-            
-        score, total = calculate_score(student_answers, answer_keys[exam_code])
-        
-        # Trả về kết quả
-        response = {
-            'exam_code': exam_code,
-            'score': score,
-            'total': total,
-            'raw_text': raw_text,
-            'student_answers': student_answers,
-            'image_url': f"/uploads/{filename}"
-        }
-        
-        logger.info(f"Graded exam {exam_code}: Score {score}/{total}")
-        return jsonify(response)
-        
-    except Exception as e:
-        logger.error(f"Error in grade_exam: {e}")
-        return jsonify({'error': 'Internal server error'}), 500
+def grade_image():
+    if 'image' not in request.files:
+        return jsonify({'error': 'No image file provided'}), 400
+    file = request.files['image']
+    if file.filename == '':
+        return jsonify({'error': 'No selected file'}), 400
 
-@app.route('/uploads/<filename>')
-def uploaded_file(filename):
-    """Phục vụ file hình ảnh đã upload."""
-    try:
-        return send_from_directory(app.config['UPLOAD_FOLDER'], filename)
-    except Exception as e:
-        logger.error(f"Error serving file {filename}: {e}")
-        return jsonify({'error': 'File not found'}), 404
+    # Lưu file tạm để xử lý
+    upload_dir = 'uploads'
+    if not os.path.exists(upload_dir):
+        os.makedirs(upload_dir)
+    filepath = os.path.join(upload_dir, file.filename)
+    file.save(filepath)
 
-@app.route('/')
-def index():
-    """Trang chính của API."""
-    return jsonify({
-        'message': 'Flask server is running. Use POST /api/grade to submit an exam image.',
-        'version': '1.0.0'
-    })
+    # Trích xuất dữ liệu từ ảnh
+    raw_text, exam_code, student_answers = extract_answers(filepath)
+    if exam_code is None:
+        return jsonify({'error': 'Không tìm thấy mã đề trong ảnh'}), 400
+    if not student_answers:
+        return jsonify({'error': 'Không trích xuất được đáp án từ ảnh'}), 400
+
+    # Tải đáp án
+    answer_keys = load_answer_keys()
+    if exam_code not in answer_keys:
+        return jsonify({'error': f'No answer key found for exam code {exam_code}. Please add it via manage_answers API'}), 400
+
+    # Tính điểm
+    score, total = calculate_score(student_answers, answer_keys[exam_code])
+
+    # Trả về kết quả
+    result = {
+        'exam_code': exam_code,
+        'raw_text': raw_text,
+        'student_answers': student_answers,
+        'correct_answers': answer_keys[exam_code],
+        'score': score,
+        'total': total
+    }
+    return jsonify(result), 200
+
+# API để quản lý đáp án
+@app.route('/api/manage_answers', methods=['POST'])
+def manage_answers():
+    data = request.get_json()
+    if not data:
+        return jsonify({'error': 'No data provided'}), 400
+
+    action = data.get('action')
+    answer_keys = load_answer_keys()
+
+    if action == 'add':
+        code = data.get('code')
+        answers = data.get('answers')
+        if not code or not isinstance(answers, dict):
+            return jsonify({'error': 'Invalid code or answers'}), 400
+        try:
+            code = int(code)
+            if code in answer_keys:
+                return jsonify({'error': f'Exam code {code} already exists'}), 400
+            answer_keys[code] = answers
+            save_answer_keys(answer_keys)
+            return jsonify({'message': f'Added exam code {code}', 'answer_keys': answer_keys}), 200
+        except ValueError:
+            return jsonify({'error': 'Code must be an integer'}), 400
+
+    elif action == 'edit':
+        code = data.get('code')
+        answers = data.get('answers')
+        if not code or not isinstance(answers, dict):
+            return jsonify({'error': 'Invalid code or answers'}), 400
+        try:
+            code = int(code)
+            if code not in answer_keys:
+                return jsonify({'error': f'Exam code {code} not found'}), 400
+            answer_keys[code] = answers
+            save_answer_keys(answer_keys)
+            return jsonify({'message': f'Edited exam code {code}', 'answer_keys': answer_keys}), 200
+        except ValueError:
+            return jsonify({'error': 'Code must be an integer'}), 400
+
+    elif action == 'delete':
+        code = data.get('code')
+        if not code:
+            return jsonify({'error': 'No code provided'}), 400
+        try:
+            code = int(code)
+            if code not in answer_keys:
+                return jsonify({'error': f'Exam code {code} not found'}), 400
+            del answer_keys[code]
+            save_answer_keys(answer_keys)
+            return jsonify({'message': f'Deleted exam code {code}', 'answer_keys': answer_keys}), 200
+        except ValueError:
+            return jsonify({'error': 'Code must be an integer'}), 400
+
+    else:
+        return jsonify({'error': 'Invalid action'}), 400
+
+# API để lấy danh sách mã đề
+@app.route('/api/get_answers', methods=['GET'])
+def get_answers():
+    answer_keys = load_answer_keys()
+    return jsonify({'answer_keys': answer_keys}), 200
 
 if __name__ == '__main__':
-    app.run(host='0.0.0.0', port=5000, debug=False)
-
-
-
-    
+    if not os.path.exists('uploads'):
+        os.makedirs('uploads')
+    app.run(debug=True, host='0.0.0.0', port=5000)
