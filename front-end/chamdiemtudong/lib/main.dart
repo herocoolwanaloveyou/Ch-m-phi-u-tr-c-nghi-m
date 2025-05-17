@@ -109,6 +109,16 @@ class HomePage extends StatelessWidget {
                 const SizedBox(height: 20),
                 _buildAnimatedButton(
                   context,
+                  icon: Icons.calculate,
+                  label: 'Chấm Điểm Ngay',
+                  onPressed: () => Navigator.push(
+                    context,
+                    MaterialPageRoute(builder: (_) => const GradeScreen()),
+                  ),
+                ),
+                const SizedBox(height: 20),
+                _buildAnimatedButton(
+                  context,
                   icon: Icons.menu_book,
                   label: 'Quản Lý Đáp Án',
                   onPressed: () => Navigator.push(
@@ -201,7 +211,7 @@ class _ImageGalleryPageState extends State<ImageGalleryPage> {
     try {
       final request = http.MultipartRequest(
         'POST',
-        Uri.parse('http://10.0.179.178:5000/api/grade'),
+        Uri.parse('http://192.168.1.79:5000/api/grade'), // Thay IP của server
       );
       request.files.add(await http.MultipartFile.fromPath('image', image.path));
       final response = await request.send();
@@ -222,8 +232,15 @@ class _ImageGalleryPageState extends State<ImageGalleryPage> {
                 Text('📄 Mã đề: ${result["exam_code"]}'),
                 Text('🏆 Điểm: ${result["score"]}/${result["total"]}'),
                 const SizedBox(height: 10),
-                Text('Đáp án:', style: subtitleStyle),
-                Text(result["student_answers"].toString()),
+                Text('Đáp án học sinh:', style: subtitleStyle),
+                ...((result['student_answers'] as Map).entries).map((entry) {
+                  return Text('Câu ${entry.key}: ${entry.value}');
+                }).toList(),
+                const SizedBox(height: 10),
+                Text('Đáp án đúng:', style: subtitleStyle),
+                ...((result['correct_answers'] as Map).entries).map((entry) {
+                  return Text('Câu ${entry.key}: ${entry.value}');
+                }).toList(),
               ],
             ),
             actions: [
@@ -602,6 +619,152 @@ class _AnswerManagerPageState extends State<AnswerManagerPage> {
             ),
           );
         },
+      ),
+    );
+  }
+}
+
+// Màn hình chấm điểm
+class GradeScreen extends StatefulWidget {
+  const GradeScreen({super.key});
+
+  @override
+  _GradeScreenState createState() => _GradeScreenState();
+}
+
+class _GradeScreenState extends State<GradeScreen> {
+  File? _image;
+  final ImagePicker _picker = ImagePicker();
+  String _message = '';
+  Map<String, dynamic>? _result;
+
+  Future<void> _pickImage() async {
+    final pickedFile = await _picker.pickImage(source: ImageSource.gallery);
+    if (pickedFile != null) {
+      setState(() {
+        _image = File(pickedFile.path);
+      });
+    }
+  }
+
+  Future<void> _gradeImage() async {
+    if (_image == null) {
+      setState(() {
+        _message = 'Vui lòng chọn ảnh!';
+      });
+      return;
+    }
+
+    try {
+      var request = http.MultipartRequest(
+        'POST',
+        Uri.parse('http://10.0.186.26:5000/api/grade'), // Thay IP của server
+      );
+      request.files.add(await http.MultipartFile.fromPath('image', _image!.path));
+      var response = await request.send();
+      var responseData = await response.stream.bytesToString();
+
+      if (response.statusCode == 200) {
+        setState(() {
+          _result = jsonDecode(responseData);
+          _message = 'Chấm điểm thành công!';
+        });
+      } else {
+        setState(() {
+          _result = null;
+          _message = 'Lỗi: ${jsonDecode(responseData)['error']}';
+        });
+      }
+    } catch (e) {
+      setState(() {
+        _result = null;
+        _message = 'Lỗi kết nối: $e';
+      });
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text('Chấm Điểm Ngay', style: titleStyle),
+        backgroundColor: primaryColor,
+      ),
+      body: Padding(
+        padding: const EdgeInsets.all(16.0),
+        child: SingleChildScrollView(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              ElevatedButton.icon(
+                onPressed: _pickImage,
+                icon: const Icon(Icons.photo_library),
+                label: const Text('Chọn ảnh', style: buttonTextStyle),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: primaryColor,
+                  minimumSize: const Size(double.infinity, 60),
+                ),
+              ),
+              const SizedBox(height: 10),
+              if (_image != null) ...[
+                ClipRRect(
+                  borderRadius: BorderRadius.circular(12),
+                  child: Image.file(_image!, height: 200, fit: BoxFit.cover),
+                ),
+                const SizedBox(height: 10),
+              ],
+              ElevatedButton.icon(
+                onPressed: _gradeImage,
+                icon: const Icon(Icons.calculate),
+                label: const Text('Chấm Điểm', style: buttonTextStyle),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: primaryColor,
+                  minimumSize: const Size(double.infinity, 60),
+                ),
+              ),
+              const SizedBox(height: 10),
+              Text(
+                _message,
+                style: TextStyle(
+                  color: _message.startsWith('Lỗi') ? Colors.red : secondaryColor,
+                  fontSize: 16,
+                ),
+              ),
+              if (_result != null) ...[
+                const SizedBox(height: 20),
+                Card(
+                  child: Padding(
+                    padding: const EdgeInsets.all(16.0),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text('📄 Mã đề: ${_result!['exam_code']}', style: titleStyle),
+                        const SizedBox(height: 10),
+                        Text('🏆 Điểm: ${_result!['score']}/${_result!['total']}', style: titleStyle),
+                        const SizedBox(height: 10),
+                        Text('Đáp án học sinh:', style: subtitleStyle),
+                        ...(( _result!['student_answers'] as Map).entries).map((entry) {
+                          return Padding(
+                            padding: const EdgeInsets.symmetric(vertical: 4.0),
+                            child: Text('Câu ${entry.key}: ${entry.value}', style: subtitleStyle),
+                          );
+                        }).toList(),
+                        const SizedBox(height: 10),
+                        Text('Đáp án đúng:', style: subtitleStyle),
+                        ...(( _result!['correct_answers'] as Map).entries).map((entry) {
+                          return Padding(
+                            padding: const EdgeInsets.symmetric(vertical: 4.0),
+                            child: Text('Câu ${entry.key}: ${entry.value}', style: subtitleStyle),
+                          );
+                        }).toList(),
+                      ],
+                    ),
+                  ),
+                ),
+              ],
+            ],
+          ),
+        ),
       ),
     );
   }
