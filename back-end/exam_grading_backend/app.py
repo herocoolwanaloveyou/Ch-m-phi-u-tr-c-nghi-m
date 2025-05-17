@@ -19,7 +19,11 @@ def load_answer_keys():
     try:
         with open(ANSWER_FILE, 'r', encoding='utf-8') as f:
             data = json.load(f)
-            return {int(k): v for k, v in data.items()}
+            # Chuyển key mã đề thành int, và key câu hỏi trong đáp án thành int
+            return {
+                int(k): {int(q): a for q, a in v.items()}
+                for k, v in data.items()
+            }
     except FileNotFoundError:
         print(f"File {ANSWER_FILE} not found, returning empty dict.")
         return {}
@@ -33,22 +37,27 @@ def load_answer_keys():
 # Lưu đáp án vào file
 def save_answer_keys(answer_keys):
     try:
+        # Chuyển key thành string khi lưu vào JSON
         with open(ANSWER_FILE, 'w', encoding='utf-8') as f:
-            json.dump({str(k): v for k, v in answer_keys.items()}, f, indent=4)
+            json.dump(
+                {str(k): {str(q): a for q, a in v.items()} for k, v in answer_keys.items()},
+                f,
+                indent=4
+            )
         print(f"Successfully saved to {ANSWER_FILE}")
     except Exception as e:
         print(f"Error saving to {ANSWER_FILE}: {e}")
 
 # Tiền xử lý ảnh
 def preprocess_strongest(image):
-    image = cv2.resize(image, None, fx=1.5, fy=1.5, interpolation=cv2.INTER_LINEAR)
+    image = cv2.resize(image, None, fx=2.0, fy=2.0, interpolation=cv2.INTER_LINEAR)
     gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
-    clahe = cv2.createCLAHE(clipLimit=2.0, tileGridSize=(8, 8))
+    clahe = cv2.createCLAHE(clipLimit=3.0, tileGridSize=(8, 8))
     gray = clahe.apply(gray)
-    filtered = cv2.bilateralFilter(gray, 9, 75, 75)
+    filtered = cv2.bilateralFilter(gray, 11, 75, 75)
     thresh = cv2.adaptiveThreshold(filtered, 255,
-                                   cv2.ADAPTIVE_THRESH_GAUSSIAN_C, cv2.THRESH_BINARY_INV, 15, 8)
-    kernel = cv2.getStructuringElement(cv2.MORPH_RECT, (2, 2))
+                                   cv2.ADAPTIVE_THRESH_GAUSSIAN_C, cv2.THRESH_BINARY_INV, 21, 10)
+    kernel = cv2.getStructuringElement(cv2.MORPH_RECT, (3, 3))
     morph = cv2.morphologyEx(thresh, cv2.MORPH_CLOSE, kernel)
     return morph
 
@@ -61,6 +70,7 @@ def extract_answers(image_path):
 
     config = r'-c tessedit_char_whitelist=ABCD0123456789:-.()MD --oem 3 --psm 6'
     text = pytesseract.image_to_string(processed, config=config)
+    print(f"OCR Output: {text}")  # Log để debug
     exam_code, student_answers = parse_answers(text)
     return text, exam_code, student_answers
 
@@ -89,8 +99,10 @@ def parse_answers(text):
 def calculate_score(student_answers, answer_key):
     score = 0
     total = len(answer_key)
+    print(f"Calculating score - Answer Key: {answer_key}, Student Answers: {student_answers}")  # Log để debug
     for q_no, correct_ans in answer_key.items():
         student_ans = student_answers.get(q_no)
+        print(f"Question {q_no}: Correct = {correct_ans}, Student = {student_ans}")  # Log để debug
         if student_ans == correct_ans:
             score += 1
     return score, total
@@ -99,10 +111,10 @@ def calculate_score(student_answers, answer_key):
 @app.route('/api/grade', methods=['POST'])
 def grade_image():
     if 'image' not in request.files:
-        return jsonify({'error': 'No image file provided'}), 400
+        return jsonify({'error': 'No image file provided', 'status': 'error'}), 400
     file = request.files['image']
     if file.filename == '':
-        return jsonify({'error': 'No selected file'}), 400
+        return jsonify({'error': 'No selected file', 'status': 'error'}), 400
 
     # Lưu file tạm để xử lý
     upload_dir = 'uploads'
@@ -113,28 +125,56 @@ def grade_image():
 
     # Trích xuất dữ liệu từ ảnh
     raw_text, exam_code, student_answers = extract_answers(filepath)
+    print(f"Extracted - Exam Code: {exam_code}, Student Answers: {student_answers}")  # Log để debug
+
+    # Khởi tạo response cơ bản
+    result = {
+        'raw_text': raw_text,
+        'status': 'success' if exam_code is not None and student_answers else 'error'
+    }
+
+    # Nếu không trích xuất được mã đề hoặc đáp án
     if exam_code is None:
-        return jsonify({'error': 'Không tìm thấy mã đề trong ảnh'}), 400
+        result['error'] = 'Không tìm thấy mã đề trong ảnh'
+        print("Error: Exam code not found in image")
+        return jsonify(result), 400
     if not student_answers:
-        return jsonify({'error': 'Không trích xuất được đáp án từ ảnh'}), 400
+        result['error'] = 'Không trích xuất được đáp án từ ảnh'
+        print("Error: No student answers extracted from image")
+        return jsonify(result), 400
 
     # Tải đáp án
     answer_keys = load_answer_keys()
+    print(f"Loaded answer keys: {answer_keys}")  # Log để debug
+    result['exam_code'] = exam_code
+    result['student_answers'] = student_answers
+
+    # So sánh với đáp án đã lưu
     if exam_code not in answer_keys:
-        return jsonify({'error': f'No answer key found for exam code {exam_code}. Please add it via manage_answers API'}), 400
+        result['error'] = f'No answer key found for exam code {exam_code}. Please add it via manage_answers API'
+        print(f"Error: Exam code {exam_code} not found in answer keys")
+        return jsonify(result), 400
 
     # Tính điểm
-    score, total = calculate_score(student_answers, answer_keys[exam_code])
+    correct_answers = answer_keys[exam_code]
+    score, total = calculate_score(student_answers, correct_answers)
+    print(f"Score Calculated - Score: {score}, Total: {total}")  # Log để debug
 
-    # Trả về kết quả
-    result = {
-        'exam_code': exam_code,
-        'raw_text': raw_text,
-        'student_answers': student_answers,
-        'correct_answers': answer_keys[exam_code],
+    # Cập nhật result với kết quả chấm điểm
+    result.update({
+        'correct_answers': correct_answers,
         'score': score,
-        'total': total
-    }
+        'total': total,
+        'status': 'success'
+    })
+
+    # Xóa file tạm sau khi xử lý
+    try:
+        os.remove(filepath)
+        print(f"Deleted temporary file: {filepath}")
+    except Exception as e:
+        print(f"Error deleting temporary file {filepath}: {e}")
+
     return jsonify(result), 200
 
 # API để quản lý đáp án
@@ -142,7 +182,7 @@ def grade_image():
 def manage_answers():
     data = request.get_json()
     if not data:
-        return jsonify({'error': 'No data provided'}), 400
+        return jsonify({'error': 'No data provided', 'status': 'error'}), 400
 
     action = data.get('action')
     answer_keys = load_answer_keys()
@@ -151,54 +191,58 @@ def manage_answers():
         code = data.get('code')
         answers = data.get('answers')
         if not code or not isinstance(answers, dict):
-            return jsonify({'error': 'Invalid code or answers'}), 400
+            return jsonify({'error': 'Invalid code or answers', 'status': 'error'}), 400
         try:
             code = int(code)
             if code in answer_keys:
-                return jsonify({'error': f'Exam code {code} already exists'}), 400
+                return jsonify({'error': f'Exam code {code} already exists', 'status': 'error'}), 400
+            # Chuyển key của answers thành int
+            answers = {int(k): v for k, v in answers.items()}
             answer_keys[code] = answers
             save_answer_keys(answer_keys)
-            return jsonify({'message': f'Added exam code {code}', 'answer_keys': answer_keys}), 200
+            return jsonify({'message': f'Added exam code {code}', 'answer_keys': answer_keys, 'status': 'success'}), 200
         except ValueError:
-            return jsonify({'error': 'Code must be an integer'}), 400
+            return jsonify({'error': 'Code must be an integer', 'status': 'error'}), 400
 
     elif action == 'edit':
         code = data.get('code')
         answers = data.get('answers')
         if not code or not isinstance(answers, dict):
-            return jsonify({'error': 'Invalid code or answers'}), 400
+            return jsonify({'error': 'Invalid code or answers', 'status': 'error'}), 400
         try:
             code = int(code)
             if code not in answer_keys:
-                return jsonify({'error': f'Exam code {code} not found'}), 400
+                return jsonify({'error': f'Exam code {code} not found', 'status': 'error'}), 400
+            # Chuyển key của answers thành int
+            answers = {int(k): v for k, v in answers.items()}
             answer_keys[code] = answers
             save_answer_keys(answer_keys)
-            return jsonify({'message': f'Edited exam code {code}', 'answer_keys': answer_keys}), 200
+            return jsonify({'message': f'Edited exam code {code}', 'answer_keys': answer_keys, 'status': 'success'}), 200
         except ValueError:
-            return jsonify({'error': 'Code must be an integer'}), 400
+            return jsonify({'error': 'Code must be an integer', 'status': 'error'}), 400
 
     elif action == 'delete':
         code = data.get('code')
         if not code:
-            return jsonify({'error': 'No code provided'}), 400
+            return jsonify({'error': 'No code provided', 'status': 'error'}), 400
         try:
             code = int(code)
             if code not in answer_keys:
-                return jsonify({'error': f'Exam code {code} not found'}), 400
+                return jsonify({'error': f'Exam code {code} not found', 'status': 'error'}), 400
             del answer_keys[code]
             save_answer_keys(answer_keys)
-            return jsonify({'message': f'Deleted exam code {code}', 'answer_keys': answer_keys}), 200
+            return jsonify({'message': f'Deleted exam code {code}', 'answer_keys': answer_keys, 'status': 'success'}), 200
         except ValueError:
-            return jsonify({'error': 'Code must be an integer'}), 400
+            return jsonify({'error': 'Code must be an integer', 'status': 'error'}), 400
 
     else:
-        return jsonify({'error': 'Invalid action'}), 400
+        return jsonify({'error': 'Invalid action', 'status': 'error'}), 400
 
 # API để lấy danh sách mã đề
 @app.route('/api/get_answers', methods=['GET'])
 def get_answers():
     answer_keys = load_answer_keys()
-    return jsonify({'answer_keys': answer_keys}), 200
+    return jsonify({'answer_keys': answer_keys, 'status': 'success'}), 200
 
 if __name__ == '__main__':
     if not os.path.exists('uploads'):

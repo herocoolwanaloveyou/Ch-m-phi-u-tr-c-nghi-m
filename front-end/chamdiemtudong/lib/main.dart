@@ -100,7 +100,7 @@ class HomePage extends StatelessWidget {
                 _buildAnimatedButton(
                   context,
                   icon: Icons.photo_library,
-                  label: 'Kho Ảnh & Chấm Điểm',
+                  label: 'Kho Ảnh',
                   onPressed: () => Navigator.push(
                     context,
                     MaterialPageRoute(builder: (_) => const ImageGalleryPage()),
@@ -157,7 +157,9 @@ class HomePage extends StatelessWidget {
 }
 
 class ImageGalleryPage extends StatefulWidget {
-  const ImageGalleryPage({super.key});
+  final bool isSelectingForGrading; // Thêm biến để xác định chế độ chọn ảnh
+
+  const ImageGalleryPage({super.key, this.isSelectingForGrading = false});
 
   @override
   State<ImageGalleryPage> createState() => _ImageGalleryPageState();
@@ -197,8 +199,8 @@ class _ImageGalleryPageState extends State<ImageGalleryPage> {
     await File(picked.path).copy('${dir.path}/$fileName');
 
     ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: const Text('🖼️ Đã thêm ảnh từ thiết bị'),
+      const SnackBar(
+        content: Text('🖼️ Đã thêm ảnh từ thiết bị'),
         backgroundColor: secondaryColor,
         behavior: SnackBarBehavior.floating,
       ),
@@ -206,65 +208,24 @@ class _ImageGalleryPageState extends State<ImageGalleryPage> {
     await _loadImages();
   }
 
-  Future<void> _sendImageForGrading(File image) async {
-    setState(() => isLoading = true);
-    try {
-      final request = http.MultipartRequest(
-        'POST',
-        Uri.parse('http://192.168.1.79:5000/api/grade'), // Thay IP của server
-      );
-      request.files.add(await http.MultipartFile.fromPath('image', image.path));
-      final response = await request.send();
+  Future<void> _captureAndSaveImage() async {
+    final picker = ImagePicker();
+    final image = await picker.pickImage(source: ImageSource.camera);
+    if (image == null) return;
 
-      if (response.statusCode == 200) {
-        final respStr = await response.stream.bytesToString();
-        final result = jsonDecode(respStr);
+    final dir = await getApplicationDocumentsDirectory();
+    final imageName = path.basename(image.path);
+    final savedImage = await File(image.path).copy('${dir.path}/$imageName');
 
-        await showDialog(
-          context: context,
-          builder: (_) => AlertDialog(
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-            title: const Text('Kết Quả Chấm Điểm', style: titleStyle),
-            content: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text('📄 Mã đề: ${result["exam_code"]}'),
-                Text('🏆 Điểm: ${result["score"]}/${result["total"]}'),
-                const SizedBox(height: 10),
-                Text('Đáp án học sinh:', style: subtitleStyle),
-                ...((result['student_answers'] as Map).entries).map((entry) {
-                  return Text('Câu ${entry.key}: ${entry.value}');
-                }).toList(),
-                const SizedBox(height: 10),
-                Text('Đáp án đúng:', style: subtitleStyle),
-                ...((result['correct_answers'] as Map).entries).map((entry) {
-                  return Text('Câu ${entry.key}: ${entry.value}');
-                }).toList(),
-              ],
-            ),
-            actions: [
-              TextButton(
-                onPressed: () => Navigator.pop(context),
-                child: const Text('OK', style: TextStyle(color: primaryColor)),
-              ),
-            ],
-          ),
-        );
-      } else {
-        throw Exception('Lỗi server: ${response.statusCode}');
-      }
-    } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('❌ Gửi ảnh thất bại: $e'),
-          backgroundColor: Colors.redAccent,
-          behavior: SnackBarBehavior.floating,
-        ),
-      );
-    } finally {
-      setState(() => isLoading = false);
-    }
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text('📸 Đã lưu ảnh: $imageName'),
+        backgroundColor: secondaryColor,
+        behavior: SnackBarBehavior.floating,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+      ),
+    );
+    await _loadImages();
   }
 
   Future<void> _confirmDelete(File image) async {
@@ -291,8 +252,8 @@ class _ImageGalleryPageState extends State<ImageGalleryPage> {
       await image.delete();
       await _loadImages();
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: const Text('🗑️ Ảnh đã được xóa'),
+        const SnackBar(
+          content: Text('🗑️ Ảnh đã được xóa'),
           backgroundColor: secondaryColor,
           behavior: SnackBarBehavior.floating,
         ),
@@ -301,6 +262,13 @@ class _ImageGalleryPageState extends State<ImageGalleryPage> {
   }
 
   Future<void> _previewImage(File image) async {
+    // Nếu đang ở chế độ chọn ảnh để chấm điểm, chỉ cần trả về ảnh đã chọn
+    if (widget.isSelectingForGrading) {
+      Navigator.pop(context, image);
+      return;
+    }
+
+    // Nếu không, hiển thị dialog xem trước như trước
     await showDialog(
       context: context,
       builder: (_) => Dialog(
@@ -319,7 +287,12 @@ class _ImageGalleryPageState extends State<ImageGalleryPage> {
                 ElevatedButton(
                   onPressed: () {
                     Navigator.pop(context);
-                    _sendImageForGrading(image);
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (_) => GradeScreen(image: image),
+                      ),
+                    );
                   },
                   style: ElevatedButton.styleFrom(backgroundColor: primaryColor),
                   child: const Text('Chấm Điểm', style: buttonTextStyle),
@@ -342,13 +315,20 @@ class _ImageGalleryPageState extends State<ImageGalleryPage> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Kho Ảnh & Chấm Điểm'),
+        title: Text(widget.isSelectingForGrading ? 'Chọn Ảnh Để Chấm Điểm' : 'Kho Ảnh'),
         backgroundColor: primaryColor,
-        actions: [
+        actions: widget.isSelectingForGrading
+            ? [] // Ẩn các nút thêm ảnh nếu đang ở chế độ chọn
+            : [
           IconButton(
             icon: const Icon(Icons.add_photo_alternate),
             onPressed: _pickImageFromGallery,
             tooltip: 'Thêm ảnh từ thư viện',
+          ),
+          IconButton(
+            icon: const Icon(Icons.camera_alt),
+            onPressed: _captureAndSaveImage,
+            tooltip: 'Chụp ảnh mới',
           ),
         ],
       ),
@@ -388,25 +368,26 @@ class _ImageGalleryPageState extends State<ImageGalleryPage> {
                     ),
                   ),
                 ),
-                Positioned(
-                  top: 8,
-                  right: 8,
-                  child: GestureDetector(
-                    onTap: () => _confirmDelete(image),
-                    child: Container(
-                      padding: const EdgeInsets.all(4),
-                      decoration: BoxDecoration(
-                        color: Colors.redAccent.withOpacity(0.8),
-                        shape: BoxShape.circle,
-                      ),
-                      child: const Icon(
-                        Icons.delete,
-                        color: Colors.white,
-                        size: 20,
+                if (!widget.isSelectingForGrading) // Ẩn nút xóa nếu ở chế độ chọn
+                  Positioned(
+                    top: 8,
+                    right: 8,
+                    child: GestureDetector(
+                      onTap: () => _confirmDelete(image),
+                      child: Container(
+                        padding: const EdgeInsets.all(4),
+                        decoration: BoxDecoration(
+                          color: Colors.redAccent.withOpacity(0.8),
+                          shape: BoxShape.circle,
+                        ),
+                        child: const Icon(
+                          Icons.delete,
+                          color: Colors.white,
+                          size: 20,
+                        ),
                       ),
                     ),
                   ),
-                ),
               ],
             ),
           );
@@ -433,29 +414,80 @@ class _AnswerManagerPageState extends State<AnswerManagerPage> {
   }
 
   Future<void> _loadAnswers() async {
-    final dir = await getApplicationDocumentsDirectory();
-    final file = File('${dir.path}/answers.json');
-    if (await file.exists()) {
-      final content = await file.readAsString();
-      final data = jsonDecode(content) as Map<String, dynamic>;
-      setState(() {
-        answerKeys = data.map((key, value) => MapEntry(
-          int.parse(key),
-          Map<int, String>.fromEntries((value as Map<String, dynamic>).entries
-              .map((e) => MapEntry(int.parse(e.key), e.value as String))),
-        ));
-      });
+    try {
+      final response = await http.get(
+        Uri.parse('http://172.20.10.13:5000/api/get_answers'),
+      );
+      if (response.statusCode == 200) {
+        final data = jsonDecode(response.body) as Map<String, dynamic>;
+        setState(() {
+          answerKeys = data['answer_keys'].map<int, Map<int, String>>((key, value) => MapEntry(
+            int.parse(key),
+            Map<int, String>.fromEntries((value as Map<String, dynamic>).entries
+                .map((e) => MapEntry(int.parse(e.key), e.value as String))),
+          ));
+        });
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Lỗi tải danh sách mã đề: ${response.statusCode}'),
+            backgroundColor: Colors.redAccent,
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+      }
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Lỗi kết nối: $e'),
+          backgroundColor: Colors.redAccent,
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
     }
   }
 
-  Future<void> _saveAnswers() async {
-    final dir = await getApplicationDocumentsDirectory();
-    final file = File('${dir.path}/answers.json');
-    final jsonContent = jsonEncode(answerKeys.map((key, value) => MapEntry(
-      key.toString(),
-      value.map((q, a) => MapEntry(q.toString(), a)),
-    )));
-    await file.writeAsString(jsonContent);
+  Future<void> _sendToServer(String action, int code, Map<int, String>? answers) async {
+    try {
+      final response = await http.post(
+        Uri.parse('http://172.20.10.13:5000/api/manage_answers'),
+        headers: {'Content-Type': 'application/json'},
+        body: jsonEncode({
+          'action': action,
+          'code': code,
+          'answers': answers?.map((q, a) => MapEntry(q.toString(), a)),
+        }),
+      );
+
+      if (response.statusCode == 200) {
+        final result = jsonDecode(response.body);
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(result['message']),
+            backgroundColor: secondaryColor,
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+        await _loadAnswers();
+      } else {
+        final result = jsonDecode(response.body);
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Lỗi: ${result['error']}'),
+            backgroundColor: Colors.redAccent,
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+      }
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Lỗi kết nối: $e'),
+          backgroundColor: Colors.redAccent,
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+    }
   }
 
   Future<void> _addExamCode() async {
@@ -463,8 +495,8 @@ class _AnswerManagerPageState extends State<AnswerManagerPage> {
     final code = int.tryParse(codeStr ?? '');
     if (code == null || answerKeys.containsKey(code)) {
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: const Text('Mã đề không hợp lệ hoặc đã tồn tại!'),
+        const SnackBar(
+          content: Text('Mã đề không hợp lệ hoặc đã tồn tại!'),
           backgroundColor: Colors.redAccent,
           behavior: SnackBarBehavior.floating,
         ),
@@ -472,10 +504,7 @@ class _AnswerManagerPageState extends State<AnswerManagerPage> {
       return;
     }
 
-    setState(() {
-      answerKeys[code] = {};
-    });
-    await _saveAnswers();
+    await _sendToServer('add', code, {});
   }
 
   Future<void> _editAnswers(int code) async {
@@ -491,10 +520,7 @@ class _AnswerManagerPageState extends State<AnswerManagerPage> {
       }
     }
 
-    setState(() {
-      answerKeys[code] = answers;
-    });
-    await _saveAnswers();
+    await _sendToServer('edit', code, answers);
   }
 
   Future<void> _deleteExamCode(int code) async {
@@ -518,17 +544,7 @@ class _AnswerManagerPageState extends State<AnswerManagerPage> {
     );
 
     if (confirm == true) {
-      setState(() {
-        answerKeys.remove(code);
-      });
-      await _saveAnswers();
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: const Text('🗑️ Đã xóa mã đề'),
-          backgroundColor: secondaryColor,
-          behavior: SnackBarBehavior.floating,
-        ),
-      );
+      await _sendToServer('delete', code, null);
     }
   }
 
@@ -624,9 +640,10 @@ class _AnswerManagerPageState extends State<AnswerManagerPage> {
   }
 }
 
-// Màn hình chấm điểm
 class GradeScreen extends StatefulWidget {
-  const GradeScreen({super.key});
+  final File? image;
+
+  const GradeScreen({super.key, this.image});
 
   @override
   _GradeScreenState createState() => _GradeScreenState();
@@ -634,15 +651,34 @@ class GradeScreen extends StatefulWidget {
 
 class _GradeScreenState extends State<GradeScreen> {
   File? _image;
-  final ImagePicker _picker = ImagePicker();
   String _message = '';
   Map<String, dynamic>? _result;
+  bool _isLoading = false;
 
-  Future<void> _pickImage() async {
-    final pickedFile = await _picker.pickImage(source: ImageSource.gallery);
-    if (pickedFile != null) {
+  @override
+  void initState() {
+    super.initState();
+    if (widget.image != null) {
       setState(() {
-        _image = File(pickedFile.path);
+        _image = widget.image;
+      });
+    }
+  }
+
+  Future<void> _pickImageFromStorage() async {
+    // Điều hướng đến ImageGalleryPage ở chế độ chọn ảnh
+    final selectedImage = await Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => const ImageGalleryPage(isSelectingForGrading: true),
+      ),
+    );
+
+    if (selectedImage != null) {
+      setState(() {
+        _image = selectedImage as File;
+        _message = '';
+        _result = null;
       });
     }
   }
@@ -655,30 +691,54 @@ class _GradeScreenState extends State<GradeScreen> {
       return;
     }
 
+    setState(() {
+      _isLoading = true;
+      _message = 'Đang chấm điểm...';
+    });
+
     try {
       var request = http.MultipartRequest(
         'POST',
-        Uri.parse('http://10.0.186.26:5000/api/grade'), // Thay IP của server
+        Uri.parse('http://172.20.10.13:5000/api/grade'),
       );
       request.files.add(await http.MultipartFile.fromPath('image', _image!.path));
       var response = await request.send();
       var responseData = await response.stream.bytesToString();
 
+      print('Response from server in GradeScreen: $responseData');
+
       if (response.statusCode == 200) {
-        setState(() {
-          _result = jsonDecode(responseData);
-          _message = 'Chấm điểm thành công!';
-        });
+        final result = jsonDecode(responseData);
+        if (result['status'] == 'success' &&
+            result.containsKey('exam_code') &&
+            result.containsKey('score') &&
+            result.containsKey('total') &&
+            result.containsKey('student_answers') &&
+            result.containsKey('correct_answers')) {
+          setState(() {
+            _result = result;
+            _message = 'Chấm điểm thành công!';
+          });
+        } else {
+          setState(() {
+            _result = null;
+            _message = 'Lỗi: ${result['error'] ?? 'Dữ liệu không hợp lệ'}';
+          });
+        }
       } else {
         setState(() {
           _result = null;
-          _message = 'Lỗi: ${jsonDecode(responseData)['error']}';
+          _message = 'Lỗi server: ${response.statusCode} - ${jsonDecode(responseData)['error'] ?? 'Không xác định'}';
         });
       }
     } catch (e) {
       setState(() {
         _result = null;
-        _message = 'Lỗi kết nối: $e';
+        _message = 'Lỗi kết nối hoặc xử lý: $e';
+      });
+    } finally {
+      setState(() {
+        _isLoading = false;
       });
     }
   }
@@ -690,79 +750,161 @@ class _GradeScreenState extends State<GradeScreen> {
         title: const Text('Chấm Điểm Ngay', style: titleStyle),
         backgroundColor: primaryColor,
       ),
-      body: Padding(
-        padding: const EdgeInsets.all(16.0),
-        child: SingleChildScrollView(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              ElevatedButton.icon(
-                onPressed: _pickImage,
-                icon: const Icon(Icons.photo_library),
-                label: const Text('Chọn ảnh', style: buttonTextStyle),
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: primaryColor,
-                  minimumSize: const Size(double.infinity, 60),
-                ),
-              ),
-              const SizedBox(height: 10),
-              if (_image != null) ...[
-                ClipRRect(
-                  borderRadius: BorderRadius.circular(12),
-                  child: Image.file(_image!, height: 200, fit: BoxFit.cover),
-                ),
-                const SizedBox(height: 10),
-              ],
-              ElevatedButton.icon(
-                onPressed: _gradeImage,
-                icon: const Icon(Icons.calculate),
-                label: const Text('Chấm Điểm', style: buttonTextStyle),
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: primaryColor,
-                  minimumSize: const Size(double.infinity, 60),
-                ),
-              ),
-              const SizedBox(height: 10),
-              Text(
-                _message,
-                style: TextStyle(
-                  color: _message.startsWith('Lỗi') ? Colors.red : secondaryColor,
-                  fontSize: 16,
-                ),
-              ),
-              if (_result != null) ...[
-                const SizedBox(height: 20),
-                Card(
-                  child: Padding(
-                    padding: const EdgeInsets.all(16.0),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text('📄 Mã đề: ${_result!['exam_code']}', style: titleStyle),
-                        const SizedBox(height: 10),
-                        Text('🏆 Điểm: ${_result!['score']}/${_result!['total']}', style: titleStyle),
-                        const SizedBox(height: 10),
-                        Text('Đáp án học sinh:', style: subtitleStyle),
-                        ...(( _result!['student_answers'] as Map).entries).map((entry) {
-                          return Padding(
-                            padding: const EdgeInsets.symmetric(vertical: 4.0),
-                            child: Text('Câu ${entry.key}: ${entry.value}', style: subtitleStyle),
-                          );
-                        }).toList(),
-                        const SizedBox(height: 10),
-                        Text('Đáp án đúng:', style: subtitleStyle),
-                        ...(( _result!['correct_answers'] as Map).entries).map((entry) {
-                          return Padding(
-                            padding: const EdgeInsets.symmetric(vertical: 4.0),
-                            child: Text('Câu ${entry.key}: ${entry.value}', style: subtitleStyle),
-                          );
-                        }).toList(),
-                      ],
-                    ),
+      body: Container(
+        decoration: const BoxDecoration(
+          gradient: LinearGradient(
+            colors: [backgroundColor, Color(0xFFE5E7EB)],
+            begin: Alignment.topCenter,
+            end: Alignment.bottomCenter,
+          ),
+        ),
+        child: Padding(
+          padding: const EdgeInsets.all(16.0),
+          child: SingleChildScrollView(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                ElevatedButton.icon(
+                  onPressed: _pickImageFromStorage,
+                  icon: const Icon(Icons.photo_library),
+                  label: const Text('Chọn ảnh từ kho', style: buttonTextStyle),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: primaryColor,
+                    minimumSize: const Size(double.infinity, 60),
                   ),
                 ),
+                const SizedBox(height: 10),
+                if (_image != null) ...[
+                  ClipRRect(
+                    borderRadius: BorderRadius.circular(12),
+                    child: Image.file(_image!, height: 200, fit: BoxFit.cover),
+                  ),
+                  const SizedBox(height: 10),
+                ],
+                ElevatedButton.icon(
+                  onPressed: _isLoading ? null : _gradeImage,
+                  icon: _isLoading
+                      ? const SizedBox(
+                    width: 24,
+                    height: 24,
+                    child: CircularProgressIndicator(color: Colors.white),
+                  )
+                      : const Icon(Icons.calculate),
+                  label: Text(
+                    _isLoading ? 'Đang xử lý...' : 'Chấm Điểm',
+                    style: buttonTextStyle,
+                  ),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: primaryColor,
+                    minimumSize: const Size(double.infinity, 60),
+                  ),
+                ),
+                const SizedBox(height: 10),
+                Text(
+                  _message,
+                  style: TextStyle(
+                    color: _message.startsWith('Lỗi') || _message.startsWith('Vui lòng')
+                        ? Colors.red
+                        : secondaryColor,
+                    fontSize: 16,
+                  ),
+                ),
+                if (_result != null) ...[
+                  const SizedBox(height: 20),
+                  Card(
+                    child: Padding(
+                      padding: const EdgeInsets.all(16.0),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Row(
+                            children: [
+                              const Icon(Icons.description, color: primaryColor, size: 24),
+                              const SizedBox(width: 8),
+                              Text(
+                                'Mã đề: ${_result!['exam_code'] ?? 'Không xác định'}',
+                                style: titleStyle,
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 10),
+                          Row(
+                            children: [
+                              const Icon(Icons.emoji_events, color: primaryColor, size: 24),
+                              const SizedBox(width: 8),
+                              Text(
+                                'Điểm: ${_result!['score'] ?? 0}/${_result!['total'] ?? 0}',
+                                style: titleStyle.copyWith(fontSize: 20),
+                              ),
+                            ],
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 20),
+                  Card(
+                    child: Padding(
+                      padding: const EdgeInsets.all(16.0),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text('Đáp án & Kết quả:', style: titleStyle),
+                          const SizedBox(height: 10),
+                          ...(_result!['student_answers'] as Map? ?? {}).entries.map((entry) {
+                            final questionNumber = entry.key;
+                            final studentAnswer = entry.value;
+                            final correctAnswer = (_result!['correct_answers'] as Map? ?? {})[questionNumber];
+                            final isCorrect = studentAnswer == correctAnswer;
+
+                            return Padding(
+                              padding: const EdgeInsets.symmetric(vertical: 4.0),
+                              child: Row(
+                                children: [
+                                  Text(
+                                    'Câu $questionNumber: ',
+                                    style: subtitleStyle,
+                                  ),
+                                  Text(
+                                    studentAnswer,
+                                    style: subtitleStyle.copyWith(
+                                      color: isCorrect ? const Color(0xFF10B981) : const Color(0xFFEF4444),
+                                    ),
+                                  ),
+                                  if (!isCorrect) ...[
+                                    const SizedBox(width: 8),
+                                    const Text(
+                                      '→',
+                                      style: TextStyle(fontSize: 16, color: Colors.black),
+                                    ),
+                                    const SizedBox(width: 8),
+                                    Text(
+                                      correctAnswer,
+                                      style: subtitleStyle.copyWith(
+                                        color: const Color(0xFF3B82F6),
+                                      ),
+                                    ),
+                                  ],
+                                ],
+                              ),
+                            );
+                          }).toList(),
+                        ],
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 20),
+                  ElevatedButton(
+                    onPressed: () {},
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: primaryColor,
+                      minimumSize: const Size(double.infinity, 50),
+                    ),
+                    child: const Text('Xem Chi Tiết', style: buttonTextStyle),
+                  ),
+                ],
               ],
-            ],
+            ),
           ),
         ),
       ),
